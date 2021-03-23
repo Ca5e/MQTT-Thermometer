@@ -6,12 +6,12 @@ keyAPI = ""
 sensorName = "ESP32/2"
 sensorLocation = "GPS data"
 
-on = True
+device_on = True
 
 
 def loop():
     count = 0
-    while on:
+    while device_on:
         count += 1
         if count % 10:
             if not wlan_check():
