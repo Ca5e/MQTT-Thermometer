@@ -1,7 +1,7 @@
 import network
 from machine import Pin
 
-led = Pin(2, Pin.OUT)  # Blue onboard LED
+status = Pin(2, Pin.OUT)  # Blue onboard LED
 
 
 #
@@ -35,11 +35,33 @@ def wlan_check():
         connection is active.
     """
     if wlan_if.isconnected():
-        led.value(1)
+        status.value(1)
         return True
     else:
-        led.value(0)
+        status.value(0)
         return False
+
+
+def stoplight(color):
+    """Accepts 'color' as red, yellow or green.
+       Toggles Pin.out depending on color.
+    """
+    r = Pin(GPIO, Pin.OUT)
+    y = Pin(GPIO, Pin.OUT)
+    g = Pin(GPIO, Pin.OUT)
+
+    if color == "red":
+        r.value(1)
+        y.value(0)
+        g.value(0)
+    elif color == "yellow":
+        r.value(0)
+        y.value(1)
+        g.value(0)
+    elif color == "green":
+        r.value(0)
+        y.value(0)
+        g.value(1)
 
 
 if __name__ == "__main__":
