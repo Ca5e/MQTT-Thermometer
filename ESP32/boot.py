@@ -1,16 +1,8 @@
 import network
+import config
 from machine import Pin
 
 status = Pin(2, Pin.OUT)  # Blue onboard LED
-
-
-#
-#   Network functions
-#
-
-SSID = ""
-WPA2 = ""
-
 wlan_if = network.WLAN(network.STA_IF)
 
 
@@ -22,7 +14,7 @@ def wlan_connect():
     if not wlan_check():
         print('connecting to network...')
         wlan_if.active(True)
-        wlan_if.connect(SSID, WPA2)
+        wlan_if.connect(config.SSID, config.WPA2)
         while not wlan_check():
             pass
     wlan_check()
@@ -43,24 +35,22 @@ def wlan_check():
 
 
 def stoplight(color):
-    """Accepts 'color' as red, yellow or green.
+    """Accepts 'color' as red, yellow or green
+       Other inputs turn off all lights.
        Toggles Pin.out depending on color.
     """
-    r = Pin(GPIO, Pin.OUT)
-    y = Pin(GPIO, Pin.OUT)
-    g = Pin(GPIO, Pin.OUT)
+    r = Pin(config.redPin, Pin.OUT)
+    y = Pin(config.ylwPin, Pin.OUT)
+    g = Pin(config.grnPin, Pin.OUT)
+    r.value(0)
+    y.value(0)
+    g.value(0)
 
     if color == "red":
         r.value(1)
-        y.value(0)
-        g.value(0)
     elif color == "yellow":
-        r.value(0)
         y.value(1)
-        g.value(0)
     elif color == "green":
-        r.value(0)
-        y.value(0)
         g.value(1)
 
 
