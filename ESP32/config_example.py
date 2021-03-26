@@ -6,7 +6,7 @@ WPA2 = "Johma Password"
 
 # Device information
 sensorName = "ESP32-6"
-sensorLocation = "GPS data"
+sensorLocation = "GPS-data"
 
 # Database connection
 serverUrl = "http://example.com/post-esp-data.php"
