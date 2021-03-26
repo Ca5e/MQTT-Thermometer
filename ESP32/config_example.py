@@ -5,7 +5,7 @@ SSID = "ESP-WiFi"
 WPA2 = "Johma Password"
 
 # Device information
-sensorName = "ESP32/2"
+sensorName = "ESP32-6"
 sensorLocation = "GPS data"
 
 # Database connection
