@@ -1,6 +1,7 @@
 import time
 import random
 import config
+import urequests
 import machine
 from boot import wlan_connect, wlan_check, stoplight
 
@@ -15,34 +16,36 @@ def temp_sensor():
 def scan():
     """Scanning logic
     """
-    scanning = True
-    while scanning:
-        stoplight("yellow")
+    while True:
+        led = stoplight("yellow")
         print("Scanning...")
 
         reading = temp_sensor()
         if reading > config.trigger:
             print("Trigger value exceeded, red light")
-            stoplight("red")
+            led = stoplight("red")
         elif reading < config.trigger:
             print("Scan successful, green light")
-            stoplight("green")
+            led = stoplight("green")
 
-        time.sleep(2)       # sleeping so output can be viewed.
-        scanning = False
+        time.sleep(2)  # sleeping so light output can be viewed.
+        return "api_key={}&sensor={}&location={}&value1={}&value2={}&value3={}" \
+            .format(config.keyAPI, config.sensorName, config.sensorLocation, config.trigger, reading, led)
 
 
 def loop():
     """Continues loop
     """
-    count = 0
     while True:
-        count += 1
-        if count % 10:
+        if config.device_on:
             if not wlan_check():
                 wlan_connect()
-        if config.device_on:
-            scan()
+            else:
+                httpsRequestData = scan()
+                post = urequests.post(config.serverUrl,
+                                      data=httpsRequestData,
+                                      headers={"content-Type": "application/x-www-form-urlencoded"})
+                print(httpsRequestData)
         else:
             stoplight("red")
             # if machine.reset_cause() == machine.DEEPSLEEP_RESET:
