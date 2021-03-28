@@ -34,7 +34,7 @@ def wlan_check():
         return False
 
 
-def stoplight(color):
+def stoplight(color="none"):
     """Accepts 'color' as red, yellow or green
        Other inputs turn off all lights.
        Toggles Pin.out depending on color.
@@ -52,6 +52,7 @@ def stoplight(color):
         y.value(1)
     elif color == "green":
         g.value(1)
+    return color
 
 
 if __name__ == "__main__":
