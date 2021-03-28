@@ -10,11 +10,12 @@ sensorLocation = "GPS-data"
 
 # Database connection
 serverUrl = "http://example.com/post-esp-data.php"
+jsonUrl = "http://example.com/config.json"
 keyAPI = "rNum87546392"
 
 
 # Specifics
-device_on = True
+standby = True
 trigger = 37.1
 
 # Stoplight GPIO pins
