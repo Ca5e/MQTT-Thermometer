@@ -1,5 +1,6 @@
-import network
 import config
+import network
+import urequests
 from machine import Pin
 
 status = Pin(2, Pin.OUT)  # Blue onboard LED
@@ -34,10 +35,18 @@ def wlan_check():
         return False
 
 
+def update_config():
+    json = urequests.get(config.jsonUrl)
+    # update standby value in config.py
+    if json.json()[config.sensorName]["standby"] != config.standby:
+        config.standby = not config.standby
+        print("Standby value was changed to:", config.standby)
+
+
 def stoplight(color="none"):
     """Accepts 'color' as red, yellow or green
        Other inputs turn off all lights.
-       Toggles Pin.out depending on color.
+       -Toggles Pin.out depending on color.-
     """
     r = Pin(config.redPin, Pin.OUT)
     y = Pin(config.ylwPin, Pin.OUT)
@@ -57,4 +66,5 @@ def stoplight(color="none"):
 
 if __name__ == "__main__":
     wlan_connect()
+    update_config()
     print('network config:', wlan_if.ifconfig())
