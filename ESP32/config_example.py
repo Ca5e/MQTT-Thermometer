@@ -6,16 +6,16 @@ WPA2 = "Johma Password"
 
 # Device information
 sensorName = "ESP32-6"
-sensorLocation = "GPS-data"
+sensorLocation = "location-data"
 
 # Database connection
-serverUrl = "http://example.com/post-esp-data.php"
-jsonUrl = "http://example.com/config.json"
+serverUrl = "https://example.com/login/post-data.php"
+jsonUrl = "https://example.com/login/config.json"
 keyAPI = "rNum87546392"
 
 
 # Specifics
-standby = True
+standby = "true"
 trigger = 37.1
 
 # Stoplight GPIO pins
