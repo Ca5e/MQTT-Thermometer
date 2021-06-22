@@ -1,60 +1,109 @@
+import uasyncio as asyncio
+
 import config
-import esp32
-import time
-import random
-import urequests
-from boot import wlan_connect, wlan_check, stoplight, update_config
+import simulation
+from mqtt.mqtt_as import MQTTClient
+from boot import stoplight, display
+
+if config.ftp:
+    import ftp.uftpd
+import utime as time
 
 
-def temp_sensor():
-    """Random readings returned as floats.
+def callback(topic, msg, retained):
+    """Coroutine, executed if a message is received.
     """
-    time.sleep(2)
-    sensor = random.uniform(30, 40)
-    ambient = (esp32.raw_temperature()-32)*.5556
-    distance = random.uniform(1.5, 4)
-    return sensor, ambient, distance
+    topic = topic.decode('ascii')
+    msg = msg.decode('ascii')
+
+    print("MQTT " + topic + ": " + msg)
+
+    if topic == config.topic_sub_mode:
+        msg = msg.lower()
+        if msg != config.mode and msg in ["standby", "scan", "monitor"]:
+            config.mode = msg
+            print("Mode updated to: " + msg)
+    elif topic == config.topic_sub_reply:
+        # example data: 30.312;19.432;892;37.1;90;1;
+        msg = msg.split(";")
+        display(msg[0], msg[1], msg[2], msg[3], msg[4], msg[5])
 
 
-def scan():
-    """Scanning logic
+async def publish_status(online="True"):
+    """Publishes current status (of system config).
     """
-    while True:
-        led = stoplight("yellow")
-        print("Scanning...")
-
-        sensor, ambient, distance = temp_sensor()
-        if sensor > config.trigger:
-            print("Trigger value exceeded, red light")
-            led = stoplight("red")
-        elif sensor < config.trigger:
-            print("Scan successful, green light")
-            led = stoplight("green")
-
-        time.sleep(2)  # sleeping so light output can be viewed.
-        return "api_key={}&name={}&location={}&ambient={}&distance={}&trigger={}&reading={}&result={}" \
-            .format(config.keyAPI, config.sensorName, config.sensorLocation, ambient, distance,
-                    config.trigger, sensor, led)
+    global client
+    await client.publish(config.topic_pub_online, online, retain=True, qos=0)
+    await client.publish(config.topic_pub_geo, '{}'.format(config.location), retain=True, qos=0)
+    print("Publishing online as " + online + " and updating location")
 
 
-def loop():
-    """Continues loop
+async def conn_han(client):
+    """Coroutine, executed once broker connection is active.
     """
-    while True:
-        if not wlan_check():
-            wlan_connect()
-            continue
-        update_config()
-        if config.standby:
-            stoplight("red")
-            time.sleep(3)
-            continue
+    await client.subscribe(config.topic_sub_reply, 1)
+    await client.subscribe(config.topic_sub_mode, 1)
 
-        httpsRequestData = scan()
-        # urequests.post(config.serverUrl, data=httpsRequestData,
-        # headers={"content-Type": "application/x-www-form-urlencoded"})
-        print(httpsRequestData)
+    await asyncio.create_task(publish_status())
+
+
+async def main(client):
+    try:
+        sensor = simulation.Sensor()
+        loop = asyncio.get_event_loop()
+        loop.create_task(sensor.start())
+        await client.connect()
+        while True:
+            try:
+                while config.mode == "standby":
+                    # standby mode: the sensor waits until the
+                    # mode is changed.
+                    stoplight("red")
+                    await sensor.stop()
+                    await asyncio.sleep(2)
+                while config.mode == "scan":
+                    if not sensor.running:
+                        loop.create_task(sensor.start())
+
+                    # scan mode: the sensor only sends data when
+                    # movement is detected.
+                    reading = sensor.read()
+
+                    if len(reading) > 0:
+                        print(reading[0][0])
+
+                    await asyncio.sleep(1 / config.fps)
+                while config.mode == "monitor":
+                    if not sensor.running:
+                        loop.create_task(sensor.start())
+
+                    # monitor mode: the sensor sends all sensor data,
+                    # even if no movement is detected.
+
+                    start = time.ticks_ms()
+                    await client.publish(config.topic_pub_reading, '{}'.format(sensor.read()), qos=0)
+                    end = time.ticks_ms()
+                    print("Published sensordata, time taken: " + str(time.ticks_diff(end, start)) + "ms")
+
+                    await asyncio.sleep(1 / config.fps)
+            except Exception as e:
+                print("Error in main(client): " + str(e))
+                await asyncio.sleep(2)
+    finally:
+        # offline mode: the sensor changes the status
+        # to 'offline' when it turns off.
+        await asyncio.create_task(publish_status(online="False"))
 
 
 if __name__ == "__main__":
-    loop()
+    config.connection['subs_cb'] = callback
+    config.connection['connect_coro'] = conn_han
+    # last will message: broker sends (online 'false') after unexpected disconnect.
+    config.connection['will'] = [config.topic_pub_online, "False", True, 1]
+
+    MQTTClient.DEBUG = True  # Print diagnostic messages
+    client = MQTTClient(config.connection)
+    try:
+        asyncio.run(main(client))
+    finally:
+        client.close()
