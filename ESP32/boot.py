@@ -1,70 +1,55 @@
+import utime
+
+import machine
+
 import config
-import network
-import urequests
-from machine import Pin
-
-status = Pin(2, Pin.OUT)  # Blue onboard LED
-wlan_if = network.WLAN(network.STA_IF)
-
-
-def wlan_connect():
-    """Handles WLAN connection for the board,
-       returns the interface object when a
-       connection is active.
-    """
-    if not wlan_check():
-        print('connecting to network...')
-        wlan_if.active(True)
-        wlan_if.connect(config.SSID, config.WPA2)
-        while not wlan_check():
-            pass
-    wlan_check()
-    return wlan_if
-
-
-def wlan_check():
-    """"Returns True if wlan is connected,
-        False otherwise. Turns on 'led' when
-        connection is active.
-    """
-    if wlan_if.isconnected():
-        status.value(1)
-        return True
-    else:
-        status.value(0)
-        return False
-
-
-def update_config():
-    json = urequests.get(config.jsonUrl)
-    # update standby value in config.py
-    if json.json()[config.sensorName]["standby"] != config.standby:
-        config.standby = not config.standby
-        print("Standby value was changed to:", config.standby)
 
 
 def stoplight(color="none"):
     """Accepts 'color' as red, yellow or green
        Other inputs turn off all lights.
-       -Toggles Pin.out depending on color.-
+       Toggles Pin.out depending on color.
     """
-    r = Pin(config.redPin, Pin.OUT)
-    y = Pin(config.ylwPin, Pin.OUT)
-    g = Pin(config.grnPin, Pin.OUT)
-    r.value(0)
-    y.value(0)
-    g.value(0)
+    for x in [config.redPin, config.ylwPin, config.grnPin]:
+        machine.Pin(x, machine.Pin.OUT).value(0)
 
     if color == "red":
-        r.value(1)
+        machine.Pin(config.redPin, machine.Pin.OUT).value(1)
     elif color == "yellow":
-        y.value(1)
+        machine.Pin(config.ylwPin, machine.Pin.OUT).value(1)
     elif color == "green":
-        g.value(1)
+        machine.Pin(config.grnPin, machine.Pin.OUT).value(1)
     return color
 
 
+def light_test():
+    for _ in range(4):
+        for x in [config.redPin, config.ylwPin, config.grnPin, config.status]:
+            pin = machine.Pin(x, machine.Pin.OUT)
+            pin.value(not pin.value())
+            utime.sleep(.07)
+
+
+def display(reading, ambient, duration, trigger, accuracy, result):
+    """update screen and lights to display reply.
+    """
+    # example reply data: 30.312, 19.432, 892, 37.1, 90, 1
+    print("Updating screen with: " + reading)
+
+    if result == "0":
+        print("\n     Normal measurement\n")
+        stoplight("green")
+    elif result == "1":
+        print("\n     Trigger value exceeded\n")
+        stoplight("red")
+    elif result == "2":
+        print("\n     No face detected\n")
+        stoplight("yellow")
+    elif result == "3":
+        print("\n     Object too close/too far\n")
+        stoplight("yellow")
+
+
 if __name__ == "__main__":
-    wlan_connect()
-    update_config()
-    print('network config:', wlan_if.ifconfig())
+    light_test()
+    pass
