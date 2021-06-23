@@ -1,7 +1,6 @@
 # MQTT
 broker = "localhost"
 port = 1883
-QOS = 1
 
 topic_sub_stream = "sensor/+/reading/stream"
 topic_publish_reply = "sensor/{}/reading/reply"
@@ -24,4 +23,5 @@ path = "C:/Program Files/sensor plotting/alerts"    # .jpg 'trigger image' save 
 
 # Initial
 queue = {}         # Dictionary used to store sensor names and corresponding frames
+results = {}       # Dictionary used to store results of each batch
 reply_list = []    # Used to store results while testing
