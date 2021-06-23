@@ -131,7 +131,7 @@ def parse(sensor):
         accuracy = 0
     
     ambient = round(sum(results["ambient"]) / len(results["ambient"]), 3)
-    duration = sum(results["duration"])
+    duration = sum(results["duration"]) / config.batch
     
 
     # trigger might change based on ambient
