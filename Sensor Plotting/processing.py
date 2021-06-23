@@ -76,7 +76,12 @@ def process(queue, display=False, sensor=None):
                         if t > fh_max:
                             fh_max = t
                             accuracy = max_val
-                detected += [fh_max]
+                
+                # Save the current image when the temperature is the highest in the batch
+                if fh_max > max(detected, default=0):
+                    cv2.imwrite(os.path.join(config.path, sensor + ".jpg"), img)
+                
+                detected += [fh_max]    # Add maximum to list
 
             # ambient is simply np.mean for now
             ambient += [np.mean(frame)]
@@ -130,9 +135,6 @@ def process(queue, display=False, sensor=None):
 
         if reading > trigger:
             result = 1
-            path = config.path
-            cv2.imwrite(os.path.join(path, sensor + ".jpg"), img)
-
         else:
             result = 0
 
