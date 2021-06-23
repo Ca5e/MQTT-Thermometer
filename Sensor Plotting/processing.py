@@ -27,78 +27,72 @@ def td_to_image(f):
     return norm
 
 
-def process(queue, display=False, sensor=None):
-    method = eval(config.method)                # Template matching method
+def process(frame, display=config.display, sensor=None):
     start_time = int(round(time.time() * 1000)) # Time in ms
-    detected = []
-    ambient = []
     try:
-        for msg in queue:
-            try:
-                # convert binary string to list:
-                frame = ast.literal_eval(msg.payload.decode('ascii'))
-            except:
-                # test frames will not get decoded:
-                frame = msg
+        try:
+            # convert binary string to list:
+            frame = ast.literal_eval(frame.payload.decode('ascii'))
+        except:
+            # test frames will not get decoded:
+            pass
 
-            # Frame processing
-            frame = np.fliplr(np.reshape(frame, mlx_shape))
-            img = td_to_image(frame)
+        # Frame processing
+        frame = np.fliplr(np.reshape(frame, mlx_shape))
+        img = td_to_image(frame)
 
-            # Image processing
-            img = cv2.applyColorMap(img, cv2.COLORMAP_JET)
-            img = cv2.resize(img, (32 * scale, 24 * scale), interpolation=cv2.INTER_CUBIC)
-            img = cv2.flip(img, 1)
+        # Image processing
+        img = cv2.applyColorMap(img, cv2.COLORMAP_JET)
+        img = cv2.resize(img, (32 * scale, 24 * scale), interpolation=cv2.INTER_CUBIC)
+        img = cv2.flip(img, 1)
 
-            # Face detection
-            res = cv2.matchTemplate(img, template, method)
-            min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(res)
+        # Face detection
+        res = cv2.matchTemplate(img, template, eval(config.method))
+        min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(res)
 
-            # max_val being the accuracy of the face detection
-            if max_val > 60000000:
-                # Draw rectangle around face
-                top_left = max_loc
-                bottom_right = (top_left[0] + w, top_left[1] + h)
-                cv2.rectangle(img, top_left, bottom_right, 255, 2)
+        # max_val being the accuracy of the face detection
+        if max_val > 60000000:
+            # draw rectangle around face
+            top_left = max_loc
+            bottom_right = (top_left[0] + w, top_left[1] + h)
+            cv2.rectangle(img, top_left, bottom_right, 255, 2)
 
-                # Draw circle around forehead
-                forehead = (top_left[0] + int(w/2), top_left[1] + int(h/2) - 30)
-                cv2.circle(img, forehead, 20, 255, 2)
+            # draw circle around forehead
+            forehead = (top_left[0] + int(w/2), top_left[1] + int(h/2) - 30)
+            cv2.circle(img, forehead, 20, 255, 2)
 
-                x, y = forehead
-                
-                # add the maximum (forehead) temperature in a 3x3
-                # region to the detected list
-                fh_max = np.min(frame)
-                for a in range(-1, 2):
-                    for b in range(-1, 2):
-                        t = frame[y//scale+a][x//scale+b]
-                        if t > fh_max:
-                            fh_max = t
-                            accuracy = max_val
-                
-                # Save the current image when the temperature is the highest in the batch
-                if fh_max > max(detected, default=0):
-                    cv2.imwrite(os.path.join(config.path, sensor + ".jpg"), img)
-                
-                detected += [fh_max]    # Add maximum to list
+            x, y = forehead
+            
+            # set the maximum (forehead) temperature in a 3x3 as reading
+            fh_max = np.min(frame)
+            for a in range(-1, 2):
+                for b in range(-1, 2):
+                    t = frame[y//scale+a][x//scale+b]
+                    if t > fh_max:
+                        fh_max = t
+                        accuracy = max_val
+            reading = fh_max
+        else:
+            reading = None
+            accuracy = 0
 
-            # ambient is simply np.mean for now
-            ambient += [np.mean(frame)]
+        # ambient is simply np.mean for now
+        ambient = np.mean(frame)
 
-            # Display
-            if display:
-                text = 'Tmin = {:+.1f} Tmean = {:+.1f} Tmax = {:+.1f}'.format(np.min(frame), np.mean(frame), np.max(frame))
-                # text = '{:+.1f}'.format(max_val)
-                cv2.putText(img, text, (5, 15), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 0, 0), 1)
-                cv2.imshow('MLX90640', img)
+        # Display
+        if reading == None:
+            text = 'Forehead: None Ambient: {:.3f}'.format(ambient)
+        else:
+            text = 'Forehead: {:.3f} Ambient: {:.3f}'.format(reading, ambient)
+        cv2.putText(img, text, (5, 15), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 0, 0), 1)
 
-                # Stop if escape key is pressed
-                key = cv2.waitKey(30) & 0xff
-                if key == 27:
-                    print('Exiting display')
-                    break
-            # time.sleep(.2)
+        if display:
+            cv2.imshow('MLX90640', img)
+
+            # stop if escape key is pressed
+            key = cv2.waitKey(30) & 0xff
+            if key == 27:
+                print('Exiting display')
 
     except KeyboardInterrupt:
         # terminate the cycle
@@ -106,28 +100,57 @@ def process(queue, display=False, sensor=None):
         print('Exiting display')
     cv2.destroyAllWindows()
 
-    #
-    # Parsing result
-    #
+    # duration is time between now and start in ms
+    duration = int(round(time.time() * 1000)) - start_time
+
+    # accuracy is a 0-100 int based on the max_val
+    if accuracy != 0:
+        accuracy = int(accuracy / 1000000 * 1.8 - 35)
+
+    # add values to dictionary inside sensor dictionary
+    for x in list(config.results[sensor].keys()):
+        config.results[sensor][x].append(eval(x))
+
+    # save the current image when the temperature is the highest in the batch
+    try:
+        if reading >= max(config.results[sensor]["reading"]):
+            cv2.imwrite(os.path.join(config.path, sensor + ".jpg"), img)
+    except TypeError:
+        pass
+
+
+def parse(sensor):
+    results = config.results[sensor]
+
+    detected = [x for x in results["reading"] if x != None]
+
+    if len(detected) > 0:
+        max_index = results["reading"].index(max(detected))
+        accuracy = results["accuracy"][max_index]
+    else:
+        accuracy = 0
+    
+    ambient = round(sum(results["ambient"]) / len(results["ambient"]), 3)
+    duration = sum(results["duration"])
+    
 
     # trigger might change based on ambient
     trigger = config.standard_trigger
 
-
     # more than 3 frames with faces must be measured
     # otherwise reading = None and accuracy = 0.
     if len(detected) < 1:
-        # No faces detected
+        # no faces detected
         reading = None
         accuracy = 0
         result = 2
     elif len(detected) < 3:
-        # Object possibly too close or too far.
+        # object possibly too close or too far.
         reading = None
         accuracy = 0
         result = 3
     else:
-        # Detection passed, setting actual measurements
+        # detection successful, setting actual measurements
         if config.randomness:
             reading = round(max(detected) + random.uniform(-1, 6), 3)
         else:
@@ -138,34 +161,37 @@ def process(queue, display=False, sensor=None):
         else:
             result = 0
 
-
-    # duration is time between now and start in ms
-    duration = int(round(time.time() * 1000)) - start_time
-
-    # accuracy is a 0-100 int based on the max_val
-    if accuracy != 0:
-        accuracy = int(accuracy / 1000000 * 1.8 - 35)
-
     # sample data: 47.434;19.432;892;37.1;90;1;
     # format: reading;ambient;duration;trigger;accuracy;result;
-    return f'{reading};{round(np.mean(ambient), 3)};{duration};{trigger};{accuracy};{result};'
+    return f'{reading};{ambient};{duration};{trigger};{accuracy};{result};'
 
 
-def start(sensor, client=None, display=config.display, batch=config.batch, publish=config.publish):
+def start(sensor, client=None, batch=config.batch, publish=config.publish):
     print(f"Thread for {sensor} has started.")
-    while len(config.queue[sensor]) > 0:
+    if len(config.queue[sensor]) > 0:
         try:
-            t0 = time.time()
             print(f"clients: {list(config.queue.keys())} are currently connected")
 
-            # wait for at least 1 second or the full batch size before continuing:
-            while len(config.queue[sensor]) < batch or time.time() - t0 < 1:
-                time.sleep(.1)
-                # if the batch is not full, force after 5 seconds:
-                if time.time() - t0 > 5:
-                    break
+            # set batch results as empty values
+            config.results[sensor] = {"reading": [], "ambient": [], "duration": [], "accuracy": []}
 
-            result = process(config.queue[sensor][:batch], display=display, sensor=sensor)
+            # process every single frame until 'batch' size is reached, or after 5 seconds:
+            sleep = 0
+            while len(config.results[sensor]["reading"]) < batch:
+                if len(config.queue[sensor]) > 0:
+                    # process the first frame in the sensor's queue
+                    process(config.queue[sensor][0], sensor=sensor)
+                    # remove the first frame from the sensor queue
+                    config.queue[sensor].pop(0)
+                    sleep = 0
+                else:
+                    # Force after 5 seconds:
+                    if sleep > 5:
+                        break
+                    time.sleep(1)
+                    sleep += 1
+
+            result = parse(sensor)
 
             publish_topic = config.topic_publish_reply.format(sensor)
             if publish:
@@ -174,8 +200,7 @@ def start(sensor, client=None, display=config.display, batch=config.batch, publi
             else:
                 config.reply_list += [result]
                 print(f"Testing: {publish_topic}, result: {result}")
+                
         except Exception as e:
             print("Thread start(): " + str(e))
-        # remove the current batch from the queue:
-        config.queue[sensor] = config.queue[sensor][batch:]
     print(f"Thread for {sensor} has stopped.")
