@@ -10,11 +10,10 @@ import config
 mlx_shape = (24, 32)
 frame = np.zeros((24 * 32,))
 
-# Amount the image should be scaled
-scale = 20
+scale = config.scale
 
 # Load the template
-template = cv2.imread(r'C:\Program Files\sensor plotting\head.png')
+template = cv2.imread(config.template)
 h, w, _ = template.shape
 
 
@@ -28,7 +27,7 @@ def td_to_image(f):
 
 
 def process(queue, display=False, sensor=None):
-    method = eval("cv2.TM_CCOEFF")              # Template matching method
+    method = eval(config.method)                # Template matching method
     start_time = int(round(time.time() * 1000)) # Time in ms
     detected = []
     ambient = []
@@ -123,10 +122,10 @@ def process(queue, display=False, sensor=None):
         result = 3
     else:
         # Detection passed, setting actual measurements
-        reading = round(max(detected) + 6, 3)
+        reading = round(max(detected), 3)
         if reading > trigger:
             result = 1
-            path = 'C:/Program Files/sensor plotting/alerts'
+            path = config.path
             cv2.imwrite(os.path.join(path, sensor + ".jpg"), img)
         else:
             result = 0
@@ -144,7 +143,7 @@ def process(queue, display=False, sensor=None):
     return f'{reading};{round(np.mean(ambient), 3)};{duration};{trigger};{accuracy};{result};'
 
 
-def start(sensor, client=None, display=True, batch=5, publish=True):
+def start(sensor, client=None, display=config.display, batch=config.batch, publish=config.publish):
     print(f"Thread for {sensor} has started.")
     while len(config.queue[sensor]) > 0:
         try:
@@ -160,7 +159,7 @@ def start(sensor, client=None, display=True, batch=5, publish=True):
 
             result = process(config.queue[sensor][:batch], display=display, sensor=sensor)
 
-            publish_topic = f"sensor/{sensor}/reading/reply"
+            publish_topic = config.topic_publish_reply.format(sensor)
             if publish:
                 client.publish(publish_topic, str(result))
                 print(f"Published to: {publish_topic}, result: {result}")
