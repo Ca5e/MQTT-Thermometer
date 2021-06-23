@@ -26,7 +26,7 @@ class Sensor:
         return self.frame
 
     async def start(self):
-        print("Starting sensor")
+        print("Starting sensor " + config.client_id)
         await asyncio.sleep(4)
         self.running = True
 
