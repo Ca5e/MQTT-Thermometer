@@ -80,11 +80,11 @@ def process(frame, display=config.display, sensor=None):
         ambient = np.mean(frame)
 
         # Display
-        if reading == None:
-            text = 'Forehead: None Ambient: {:.3f}'.format(ambient)
-        else:
-            text = 'Forehead: {:.3f} Ambient: {:.3f}'.format(reading, ambient)
-        cv2.putText(img, text, (5, 15), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 0, 0), 1)
+        # if reading == None:
+        #     text = 'Forehead: None Ambient: {:.3f}'.format(ambient)
+        # else:
+        #     text = 'Forehead: {:.3f} Ambient: {:.3f}'.format(reading, ambient)
+        # cv2.putText(img, text, (5, 15), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 0, 0), 1)
 
         if display:
             cv2.imshow('MLX90640', img)
