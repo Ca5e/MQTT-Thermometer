@@ -14,14 +14,9 @@ def on_connect(client, userdata, flags, rc):
         print("Bad connection to MQTT broker, returned code=", rc)
 
 
-def on_publish(client, userdata, mid):
-    print("mid: " + str(mid))
-
-
 def get_mqtt_client():
     """Return the MQTT client object."""
     client = mqtt.Client()
     client.connected_flag = False  # set flag
     client.on_connect = on_connect
-    client.on_publish = on_publish
     return client
