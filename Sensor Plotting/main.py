@@ -19,10 +19,9 @@ def on_message(client, userdata, msg):
 
     config.queue.setdefault(sensor, []).append(msg)
     try:
-        # if 'sensor's key has one or less items, start the thread:
-        if len(config.queue[sensor]) <= 1:
-            x = threading.Thread(target=processing.start, args=(sensor, client))
-            x.start()
+        # start thread with name 'sensor' if it doesn't exist yet:
+        if sensor not in str(threading.enumerate()):
+            threading.Thread(target=processing.start, args=(sensor, client), name=sensor).start()
     except Exception as e:
         print("on_message(): " + str(e))
 
