@@ -3,6 +3,7 @@ import numpy as np
 import cv2
 import ast
 import os
+import random
 
 import config
 
@@ -122,11 +123,16 @@ def process(queue, display=False, sensor=None):
         result = 3
     else:
         # Detection passed, setting actual measurements
-        reading = round(max(detected), 3)
+        if config.randomness:
+            reading = round(max(detected) + random.uniform(-1, 6), 3)
+        else:
+            reading = round(max(detected), 3)
+
         if reading > trigger:
             result = 1
             path = config.path
             cv2.imwrite(os.path.join(path, sensor + ".jpg"), img)
+
         else:
             result = 0
 
@@ -148,7 +154,7 @@ def start(sensor, client=None, display=config.display, batch=config.batch, publi
     while len(config.queue[sensor]) > 0:
         try:
             t0 = time.time()
-            print(f"clients: {config.queue.keys()} are currently connected")
+            print(f"clients: {list(config.queue.keys())} are currently connected")
 
             # wait for at least 1 second or the full batch size before continuing:
             while len(config.queue[sensor]) < batch or time.time() - t0 < 1:
