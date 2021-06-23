@@ -5,9 +5,9 @@ from mqtt.mqtt_as import config as connection
 connection["ssid"] = "SSID"
 connection["wifi_pw"] = "password"
 
-# FTP server
-# Makes it easier to transfer files
-ftp = True
+# Activate a small FTP server,
+# to make file transfer easier.
+ftp = False
 
 
 # MQTT connection
@@ -25,7 +25,7 @@ topic_sub_mode = "sensor/%s/update/mode" % client_id
 
 
 # Specifics
-mode = "scan"       # default mode
+mode = "monitor"       # default mode
 trigger = 37.1
 fps = 2
 
