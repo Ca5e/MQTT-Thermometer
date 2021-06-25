@@ -27,7 +27,7 @@ def td_to_image(f):
     return norm
 
 
-def process(frame, display=config.display, sensor=None):
+def process(frame, sensor=None):
     start_time = int(round(time.time() * 1000)) # Time in ms
     try:
         try:
@@ -86,8 +86,8 @@ def process(frame, display=config.display, sensor=None):
         #     text = 'Forehead: {:.3f} Ambient: {:.3f}'.format(reading, ambient)
         # cv2.putText(img, text, (5, 15), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 0, 0), 1)
 
-        if display:
-            cv2.imshow('MLX90640', img)
+        if config.display:
+            cv2.imshow(sensor, img)
 
             # stop if escape key is pressed
             key = cv2.waitKey(30) & 0xff
@@ -180,7 +180,7 @@ def start(sensor, client=None, batch=config.batch, publish=config.publish):
             while len(config.results[sensor]["reading"]) < batch:
                 if len(config.queue[sensor]) > 0:
                     # process the first frame in the sensor's queue
-                    process(config.queue[sensor][0], sensor=sensor)
+                    process(config.queue[sensor][0], sensor)
                     # remove the first frame from the sensor queue
                     config.queue[sensor].pop(0)
                     sleep = 0
@@ -203,4 +203,7 @@ def start(sensor, client=None, batch=config.batch, publish=config.publish):
                 
         except Exception as e:
             print("Thread start(): " + str(e))
+    # if the queue is empty, remove the sensor's key:
+    if len(config.queue[sensor]) < 1:
+        config.queue.pop(sensor, None)
     print(f"Thread for {sensor} has stopped.")
