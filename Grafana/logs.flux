@@ -1,25 +1,75 @@
-// sensor variable
+// Variable Sensor
 import "influxdata/influxdb/schema"
 
 schema.tagValues(
-  bucket: v.bucket,
+  bucket: "${organization}",
   tag: "sensor",
   predicate: (r) => true,
-  start: v.timeRangeStart
+  start: -30d
 )
 
 
-// mean temperature
+// Variable Organization
+buckets()
+//  Custom regex to negate any values starting with _
+//  ^(?!.*?^_).*
+
+
+// Triggers exceeded map
+//  Transformed using 'Labels to fields'
+
+//  Query A
+lng = from(bucket:"${organization}")
+  |> range(start: -30d)
+  |> filter(fn:(r) =>
+    r._measurement == "status/geo" and
+    r._field == "lng" and
+    contains(value: r.sensor, set: ${sensor:json})
+  )
+  |> last()
+
+lat = from(bucket:"${organization}")
+  |> range(start: -30d)
+  |> filter(fn:(r) =>
+    r._measurement == "status/geo" and
+    r._field == "lat" and
+    contains(value: r.sensor, set: ${sensor:json})
+  )
+  |> last()
+
+join(tables: {lng, lat}, on: ["_time", "_measurement", "sensor"])
+
+//  Query B
 from(bucket:"${organization}")
+  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+  |> filter(fn:(r) =>
+    r._measurement == "reading/reply" and
+    r._field == "result" and
+    r._value == 1 and
+    contains(value: r.sensor, set: ${sensor:json})
+  )
+  |> count()
+
+
+
+// Mean ambient temperature
+//  Transformed using 'Series to rows'
+from(bucket: "${organization}")
   |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
   |> filter(fn:(r) =>
     r._measurement == "reading/reply" and
     r._field == "ambient" and
     contains(value: r.sensor, set: ${sensor:json})
   )
+  |> aggregateWindow(
+    every: 1m,
+    fn: mean
+  )
 
 
-// logs
+
+// Measurement logs
+//  Transformed using 'Labels to fields'
 reading = from(bucket:"${organization}")
   |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
   |> filter(fn:(r) =>
@@ -70,7 +120,22 @@ trigger = from(bucket:"${organization}")
 
 union(tables: [ambient, reading, accuracy, duration, result, trigger])
 
-// status/online logs
+
+
+// Last reading
+from(bucket: "${organization}")
+  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+  |> filter(fn:(r) =>
+    r._measurement == "reading/reply" and
+    r._field == "reading" and
+    contains(value: r.sensor, set: ${sensor:json})
+  )
+  |> last()
+
+
+
+// Status/online logs
+//  Transformed using 'Labels to fields'
 from(bucket:"${organization}")
   |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
   |> filter(fn:(r) =>
@@ -78,14 +143,16 @@ from(bucket:"${organization}")
     r._field == "online" and
     contains(value: r.sensor, set: ${sensor:json})
   )
-  |> map(fn: (r) => ({
-    _time: r._time,
-    _value: if r._value > 99.2 then true else false
-  }))
+  |> toString()
 
-// 
+
+
+// Online sensor(s)
+//  Transformed using 'Labels to fields' and 'Filter data by values' (exclude value false)
+
+//  Query A
 online = from(bucket:"${organization}")
-  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+  |> range(start: -30d)
   |> filter(fn:(r) =>
     r._measurement == "status/online" and
     r._field == "online" and
@@ -94,56 +161,22 @@ online = from(bucket:"${organization}")
   |> toString()
   |> last()
 
-lng = from(bucket:"${organization}")
-  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+mode = from(bucket:"${organization}")
+  |> range(start: -30d)
   |> filter(fn:(r) =>
-    r._measurement == "status/geo" and
-    r._field == "lng" and
-    contains(value: r.sensor, set: ${sensor:json})
-  )
-  |> toString()
-  |> last()
-
-lat = from(bucket:"${organization}")
-  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
-  |> filter(fn:(r) =>
-    r._measurement == "status/geo" and
-    r._field == "lat" and
-    contains(value: r.sensor, set: ${sensor:json})
-  )
-  |> toString()
-  |> last()
-
-geo = join(tables: {lng, lat}, on: ["sensor"])
-
-join(tables: {geo, online}, on: ["sensor"])
-
-
-// online status difference
-f = from(bucket:"${organization}")
-  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
-  |> filter(fn:(r) =>
-    r._measurement == "status/online" and
-    r._field == "online" and
-    r._value == false and
+    r._measurement == "status/mode" and
+    r._field == "mode" and
     contains(value: r.sensor, set: ${sensor:json})
   )
   |> last()
-  |> toString()
 
-t = from(bucket:"${organization}")
-  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
-  |> filter(fn:(r) =>
-    r._measurement == "status/online" and
-    r._field == "online" and
-    r._value == true and
-    contains(value: r.sensor, set: ${sensor:json})
-  )
-  |> last()
-  |> toString()
+join(tables: {mode, online}, on: ["sensor"])
 
-duration = from(bucket:"${organization}")
-  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+//  Query B
+import "strings"
+
+from(bucket:"${organization}")
+  |> range(start: -30d)
   |> filter(fn:(r) =>
     r._measurement == "status/online" and
     r._field == "online" and
@@ -153,15 +186,53 @@ duration = from(bucket:"${organization}")
   |> toString()
   |> map(fn: (r) => ({
     r with
-    level:
-      if r._value == "true" then now() - r._time
-      else if r._value >= 85.0000001 and r._value <= 95.0 then "warning"
-      else "normal"
+    duration:
+      if r._value == "true" then string(v: duration(v: uint(v: now()) - uint(v: r._time)))
+      else "offline"
+    })
+  )
+  |> map(fn: (r) => ({
+      r with
+      duration: strings.splitAfter(v: r.duration, t: "s")[0]
     })
   )
 
-union(tables: [t, f])
 
 
-// Data verwijderen:
-// .\influx delete --bucket 5Groningen --org Johma --start '2021-05-16T00:00:00Z' --stop '2021-05-18T00:00:00Z'
+// Last location data
+//  Transformed using 'Labels to fields' and 'Merge'
+lng = from(bucket:"${organization}")
+  |> range(start: -30d)
+  |> filter(fn:(r) =>
+    r._measurement == "status/geo" and
+    r._field == "lng" and
+    contains(value: r.sensor, set: ${sensor:json})
+  )
+  |> last()
+
+lat = from(bucket:"${organization}")
+  |> range(start: -30d)
+  |> filter(fn:(r) =>
+    r._measurement == "status/geo" and
+    r._field == "lat" and
+    contains(value: r.sensor, set: ${sensor:json})
+  )
+  |> last()
+
+join(tables: {lng, lat}, on: ["_time", "_measurement", "_start", "_stop", "sensor"])
+
+
+
+// Mean reply processing time
+//  Transformed using 'Series to rows'
+from(bucket: "${organization}")
+  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+  |> filter(fn:(r) =>
+    r._measurement == "reading/reply" and
+    r._field == "duration" and
+    contains(value: r.sensor, set: ${sensor:json})
+  )
+  |> aggregateWindow(
+    every: 1m,
+    fn: mean
+  )
