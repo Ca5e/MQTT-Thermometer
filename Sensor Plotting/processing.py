@@ -1,3 +1,6 @@
+"""
+Processes frame batches into measurements and sends replies.
+"""
 import time
 import numpy as np
 import cv2
